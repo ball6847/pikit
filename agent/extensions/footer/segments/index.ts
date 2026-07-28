@@ -5,6 +5,7 @@ import { pathSegment } from "./path.js";
 import { gitSegment } from "./git.js";
 import { thinkingSegment } from "./thinking.js";
 import { tokenInSegment, tokenOutSegment, tokenTotalSegment, cacheReadSegment, cacheWriteSegment } from "./tokens.js";
+import { tokenSpeedSegment } from "./speed.js";
 import { costSegment } from "./cost.js";
 import { contextPctSegment, contextTotalSegment } from "./context.js";
 import { separatorSegment } from "./separator.js";
@@ -26,6 +27,7 @@ const SEGMENTS = {
   context_total: contextTotalSegment,
   cache_read: cacheReadSegment,
   cache_write: cacheWriteSegment,
+  token_speed: tokenSpeedSegment,
   separator: separatorSegment,
   caveman: cavemanSegment,
   plan_mode: planModeSegment,

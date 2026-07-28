@@ -22,6 +22,7 @@ const DEFAULT_COLORS: ColorScheme = {
   contextLabel: "muted",
   cost: "muted",
   tokens: "muted",
+  tokenSpeed: "muted",
   separator: "#4e4c49",
   modeIndicator: "muted",
 };

@@ -27,7 +27,8 @@ export type SemanticColor =
   | "cost"
   | "tokens"
   | "separator"
-  | "modeIndicator";
+  | "modeIndicator"
+  | "tokenSpeed";
 
 // Color scheme mapping semantic names to actual colors
 export type ColorScheme = Partial<Record<SemanticColor, ColorValue>>;
@@ -50,6 +51,7 @@ export type StatusLineSegmentId =
   | "caveman"
   | "plan_mode"
   | "chat_mode"
+  | "token_speed"
   | "separator"
   | `text:${string}`;
 
@@ -105,6 +107,8 @@ export interface SegmentContext {
   contextWindow: number;
   usingSubscription: boolean;
   sessionStartTime: number;
+  tokenSpeedTps: number;
+  tokenSpeedIsStreaming: boolean;
   git: GitStatus;
   options: StatusLineSegmentOptions;
   width: number;
