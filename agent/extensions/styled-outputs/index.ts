@@ -28,6 +28,11 @@ import { branchLine, doneLabel, errorLabel, expandHint, formatExpandedLines } fr
 const WEB_TOOLS = new Set(["web_search", "fetch_content", "get_search_content"]);
 
 export default function styledOutputs(pi: ExtensionAPI) {
+  const disabled = process.env.PI_STYLED_OUTPUTS_DISABLED;
+  if (disabled === "1" || disabled === "true") {
+    return;
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     setCurrentTheme(ctx.ui.theme);
   });
