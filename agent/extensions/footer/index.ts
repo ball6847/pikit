@@ -190,7 +190,7 @@ export default function footer(pi: ExtensionAPI) {
 
     // Get git status (cached)
     const gitBranch = footerDataRef?.getGitBranch() ?? null;
-    const gitStatus = getGitStatus(gitBranch);
+    const gitStatus = getGitStatus(gitBranch, effectiveConfig.segmentOptions.git);
 
     // Check if using OAuth subscription
     const usingSubscription = ctx.model

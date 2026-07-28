@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { GitStatus } from "./types.js";
+import type { GitStatus, StatusLineSegmentOptions } from "./types.js";
 
 interface CachedGitStatus {
   staged: number;
@@ -122,9 +122,12 @@ export function getCurrentBranch(providerBranch: string | null): string | null {
   return cachedBranch ? cachedBranch.branch : providerBranch;
 }
 
-export function getGitStatus(providerBranch: string | null): GitStatus {
+export function getGitStatus(providerBranch: string | null, opts?: StatusLineSegmentOptions['git']): GitStatus {
   const now = Date.now();
   const branch = getCurrentBranch(providerBranch);
+
+  // Skip status fetch if no dirty indicators are requested
+  const shouldCheckDirty = opts?.showStaged !== false || opts?.showUnstaged !== false || opts?.showUntracked !== false;
 
   if (cachedStatus && now - cachedStatus.timestamp < CACHE_TTL_MS) {
     return {
@@ -135,7 +138,7 @@ export function getGitStatus(providerBranch: string | null): GitStatus {
     };
   }
 
-  if (!pendingFetch) {
+  if (shouldCheckDirty && !pendingFetch) {
     const fetchId = invalidationCounter;
     pendingFetch = fetchGitStatus().then((result) => {
       if (fetchId === invalidationCounter) {
