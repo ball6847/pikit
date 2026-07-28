@@ -31,10 +31,6 @@ export const tokenSpeedSegment = {
   render(ctx: SegmentContext): RenderedSegment {
     const tps = ctx.tokenSpeedTps;
 
-    if (!ctx.tokenSpeedIsStreaming && tps <= 0) {
-      return { content: "", visible: false };
-    }
-
     const value = tps > 0 ? tps.toFixed(1) : "--";
     const unit = "tok/s";
     const coloredValue = applyTpsColor(value, tps);
