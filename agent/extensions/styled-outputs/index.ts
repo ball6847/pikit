@@ -28,8 +28,8 @@ import { branchLine, doneLabel, errorLabel, expandHint, formatExpandedLines } fr
 const WEB_TOOLS = new Set(["web_search", "fetch_content", "get_search_content"]);
 
 export default function styledOutputs(pi: ExtensionAPI) {
-  const disabled = process.env.PI_STYLED_OUTPUTS_DISABLED;
-  if (disabled === "1" || disabled === "true") {
+  const enabled = process.env.PI_STYLED_OUTPUTS_ENABLED;
+  if (enabled !== "1" && enabled !== "true") {
     return;
   }
 
