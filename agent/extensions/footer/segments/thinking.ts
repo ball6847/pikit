@@ -35,7 +35,7 @@ export const thinkingSegment = {
   render(ctx: SegmentContext): RenderedSegment {
     const level = ctx.thinkingLevel || "off";
 
-    const label = applyColor(ctx.theme, "dim", "Thinking:");
+    const label = applyColor(ctx.theme, "dim", "Effort:");
     const text = LEVEL_CAPS[level] || level.toUpperCase();
 
     const colorKey = LEVEL_COLOR_KEY[level];
