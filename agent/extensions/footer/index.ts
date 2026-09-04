@@ -111,55 +111,34 @@ export default function footer(pi: ExtensionAPI) {
     currentCtx = ctx;
     lastBranchLength = 0;
     cachedUsageStats = null;
-    tokenSpeedEngine.stop();
+    tokenSpeedEngine.end();
 
     if (ctx.hasUI) {
       setupFooter(ctx);
     }
   });
 
-  // Track streaming token deltas for tok/s measurement
+  // Measure streaming token throughput (tok/s)
   pi.on("message_update", async (event: any, _ctx: ExtensionContext) => {
     const ev = event.assistantMessageEvent ?? event.delta ?? {};
     const type = ev.type as string;
 
     if (type === "text_start" || type === "thinking_start" || type === "toolcall_start") {
-      tokenSpeedEngine.start();
+      tokenSpeedEngine.beginBlock();
       return;
     }
 
-    if (type === "text_delta" || type === "thinking_delta") {
+    if (type === "text_delta" || type === "thinking_delta" || type === "toolcall_delta") {
       const usageOutput = ev.partial?.usage?.output as number | undefined;
       tokenSpeedEngine.recordDelta(ev.delta ?? "", usageOutput);
       tuiRef?.requestRender();
       return;
     }
 
-    if (type === "toolcall_delta") {
-      const toolCall = ev.partial?.content?.[ev.contentIndex ?? 0];
-      if (toolCall?.type === "toolCall" && (toolCall.name === "edit" || toolCall.name === "write")) {
-        tokenSpeedEngine.recordDelta(ev.delta ?? "");
-        tuiRef?.requestRender();
-      }
-      return;
-    }
-
-    if (type === "text_end" || type === "thinking_end" || type === "toolcall_end" || type === "done") {
-      tokenSpeedEngine.stop();
+    if (type === "done" || type === "error") {
+      tokenSpeedEngine.end();
       tuiRef?.requestRender();
     }
-  });
-
-  // Reconcile total token count from final usage stats
-  pi.on("agent_end", async (event: any, _ctx: ExtensionContext) => {
-    const messages = (event.messages ?? []) as any[];
-    const outputTokens = messages.reduce((acc, m) => {
-      if (m.role === "assistant") return acc + (m.usage?.output ?? 0);
-      if (m.role === "toolResult") return acc + (m.usage?.output ?? 0);
-      return acc;
-    }, 0);
-    tokenSpeedEngine.reconcileTotal(outputTokens);
-    tuiRef?.requestRender();
   });
 
   // Invalidate git status on file changes

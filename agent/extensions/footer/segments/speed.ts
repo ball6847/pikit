@@ -1,8 +1,8 @@
 import type { RenderedSegment, SegmentContext } from "../types.js";
-import { fg } from "../theme.js";
+import { applyColor } from "../theme.js";
 
 function lbl(ctx: SegmentContext, text: string): string {
-  return fg(ctx.theme, "dim", text);
+  return applyColor(ctx.theme, "dim", text);
 }
 
 /** Map TPS value → 24-bit ANSI color based on speed thresholds */

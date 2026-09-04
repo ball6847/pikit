@@ -1,9 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Token Speed Engine
-// Tracks streaming token generation in real-time using a sliding window.
+// Measures streaming token throughput in real time using a sliding window.
+//
+// Counting strategies:
+//  - Preferred: provider-reported cumulative output tokens. Adopted once it
+//    advances past its baseline and held for the rest of the message, so the
+//    anchor survives content-block transitions (thinking -> text -> toolcall)
+//    where the cumulative counter keeps climbing.
+//  - Fallback: 1 token per delta event, used only until the preferred source
+//    demonstrates its first advance (providers that report usage solely in
+//    the final chunk, e.g. classic OpenAI chat completions).
+//
+// TPS is computed lazily at read time, so it decays toward zero when the
+// stream goes quiet instead of freezing at the last sample.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const TOKEN_REGEX = /\w+|[^\s\w]/g;
 const WINDOW_MS = 3000;
 const COMPACTION_THRESHOLD = 5000;
 const MIN_WINDOW_MS = 100;
@@ -56,71 +67,60 @@ class SlidingWindow {
 
 export class TokenSpeedEngine {
   private _isStreaming = false;
-  private _tokenCount = 0;
-  private _startTime = 0;
-  private _endTime = 0;
   private _slidingWindow = new SlidingWindow();
-  private _currentTps = 0;
-  private _countedOutput = 0;
+  /** Last observed value of the provider's cumulative output token count. */
+  private _anchor = 0;
+  /** Whether the preferred (usage-based) counting source has been adopted. */
+  private _prefActive = false;
 
   get isStreaming(): boolean {
     return this._isStreaming;
   }
 
-  get tokenCount(): number {
-    return this._tokenCount;
-  }
-
+  /** Live tokens/sec over the trailing window; 0 when nothing was recent. */
   get tps(): number {
-    return this._currentTps;
+    return this._slidingWindow.getTps(Date.now());
   }
 
-  get elapsedSeconds(): number {
-    if (this._startTime === 0) return 0;
-    const end = this._isStreaming ? Date.now() : this._endTime;
-    return (end - this._startTime) / 1000;
-  }
-
-  start(): void {
+  /**
+   * A content block started. Begins a fresh measurement when no message is
+   * active; a no-op for additional blocks within the same message, so the
+   * window and cumulative anchor survive block transitions.
+   */
+  beginBlock(): void {
     if (this._isStreaming) return;
-    this._tokenCount = 0;
     this._isStreaming = true;
-    this._startTime = Date.now();
-    this._endTime = Date.now();
     this._slidingWindow.reset();
-    this._currentTps = 0;
-    this._countedOutput = 0;
+    this._anchor = 0;
+    this._prefActive = false;
   }
 
-  stop(): void {
+  /** The message ended (normally or via error). Clears all measurements. */
+  end(): void {
     this._isStreaming = false;
-    this._endTime = Date.now();
     this._slidingWindow.reset();
+    this._anchor = 0;
+    this._prefActive = false;
   }
 
-  recordDelta(delta: string, usageOutput?: number): void {
+  recordDelta(_delta: string, usageOutput?: number): void {
     if (!this._isStreaming) return;
 
-    // Prefer provider-reported cumulative output token count
-    if (usageOutput !== undefined && usageOutput > this._countedOutput) {
-      const deltaTokens = usageOutput - this._countedOutput;
-      this._recordTokens(deltaTokens);
-      this._countedOutput = usageOutput;
+    if (usageOutput !== undefined && usageOutput > this._anchor) {
+      this._prefActive = true;
+      this._slidingWindow.record(usageOutput - this._anchor);
+      this._anchor = usageOutput;
       return;
     }
-
-    // Fallback: count 1 token per delta event
-    this._recordTokens(1);
-  }
-
-  reconcileTotal(tokens: number): void {
-    if (tokens > 0) this._tokenCount = tokens;
-  }
-
-  private _recordTokens(tokens: number): void {
-    if (!this._isStreaming || tokens <= 0) return;
-    this._tokenCount += tokens;
-    this._slidingWindow.record(tokens);
-    this._currentTps = this._slidingWindow.getTps(Date.now());
+    if (usageOutput !== undefined && usageOutput < this._anchor) {
+      // Cumulative counter restarted lower than expected: a new message
+      // began without an explicit terminator. Resync the baseline.
+      this._slidingWindow.reset();
+      this._anchor = usageOutput;
+      this._prefActive = false;
+      return;
+    }
+    if (this._prefActive) return; // Flat reading on an adopted scale: no progress
+    this._slidingWindow.record(1); // Fallback until the preferred source proves itself
   }
 }
