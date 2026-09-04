@@ -7,9 +7,10 @@
 //    advances past its baseline and held for the rest of the message, so the
 //    anchor survives content-block transitions (thinking -> text -> toolcall)
 //    where the cumulative counter keeps climbing.
-//  - Fallback: 1 token per delta event, used only until the preferred source
-//    demonstrates its first advance (providers that report usage solely in
-//    the final chunk, e.g. classic OpenAI chat completions).
+//  - Fallback: token estimate from the delta text itself (script-weighted
+//    char count), used until the preferred source demonstrates its first
+//    advance. Counts content, not events, so batched chunks (multiple tokens
+//    per SSE event) don't deflate the reading.
 //
 // TPS is computed lazily at read time, so it decays toward zero when the
 // stream goes quiet instead of freezing at the last sample.
@@ -65,6 +66,29 @@ class SlidingWindow {
   }
 }
 
+/**
+ * Rough token estimate for delta text, weighted by script: Latin/code runs
+ * at ~4 chars/token, CJK ideographs at ~1.5 chars/token. Good enough for a
+ * status-bar meter without pulling in a tokenizer dependency.
+ */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  let cps = 0;
+  let cjk = 0;
+  for (const ch of text) {
+    cps++;
+    const cp = ch.codePointAt(0)!;
+    if (
+      (cp >= 0x2e80 && cp <= 0x9fff) || // CJK unified, kangxi, hangul
+      (cp >= 0xf900 && cp <= 0xfaff) || // CJK compat
+      (cp >= 0x20000 && cp <= 0x2effff) // extensions B-F
+    ) {
+      cjk++;
+    }
+  }
+  return Math.max(1, Math.round((cps - cjk) / 4 + cjk / 1.5));
+}
+
 export class TokenSpeedEngine {
   private _isStreaming = false;
   private _slidingWindow = new SlidingWindow();
@@ -103,7 +127,7 @@ export class TokenSpeedEngine {
     this._prefActive = false;
   }
 
-  recordDelta(_delta: string, usageOutput?: number): void {
+  recordDelta(delta: string, usageOutput?: number): void {
     if (!this._isStreaming) return;
 
     if (usageOutput !== undefined && usageOutput > this._anchor) {
@@ -121,6 +145,6 @@ export class TokenSpeedEngine {
       return;
     }
     if (this._prefActive) return; // Flat reading on an adopted scale: no progress
-    this._slidingWindow.record(1); // Fallback until the preferred source proves itself
+    this._slidingWindow.record(estimateTokens(delta)); // Fallback until the preferred source proves itself
   }
 }
